@@ -1,6 +1,6 @@
 # PROJECT_SPEC.md
 
-**Статус реализации:** все обязательные пункты раздела 3 курса закрыты в коде и прогнаны. Stack поднимается через `docker compose up`, e2e проверен через Playwright (форма → план → правка → accept → PDF). Evals A/B прогнан на 10 golden-примерах — отчёт в `evals/results/ab_mini_41_vs_4o.md`.
+**Статус реализации:** все обязательные пункты закрыты в коде и прогнаны. Stack поднимается через `docker compose up`, e2e проверен через Playwright (форма → план → правка → accept → PDF). Evals A/B прогнан на 10 golden-примерах — отчёт в `evals/results/ab_mini_41_vs_4o.md`.
 
 ## Что строим
 
@@ -43,19 +43,19 @@
 - docker-compose (один command для запуска всего стека)
 - Опционально: Render для публичного деплоя
 
-## Mapping обязательных требований курса на проект
+## Реализованные компоненты
 
-| Требование курса | Реализация в проекте | Где смотреть |
+| Компонент | Реализация в проекте | Где смотреть |
 |---|---|---|
 | LangGraph multi-step workflow с ветвлениями/циклами/HITL | 14 пользовательских нод (15 включая `__start__`), 3 ветвления, 2 цикла, 2 HITL-точки | `ARCHITECTURE.md` |
-| Собственный MCP-сервер с 2–3 tool'ами | 3 сервера, 10 tool'ов суммарно (4 + 3 + 3) | `MCP_SERVERS.md` |
-| Собственный Skill с SKILL.md | `itinerary-formatter` skill | `skill/itinerary-formatter/SKILL.md` |
-| RAG: chunking + embedding + Qdrant + (опц.) reranker | Wikivoyage по разделам, `text-embedding-3-small` (1536-dim), Qdrant; reranker — опционально | `ARCHITECTURE.md` → RAG |
-| Парсинг документов или скрапинг | Скрейпинг Wikivoyage для 5 городов | `scripts/ingest_wikivoyage.py` |
+| MCP-серверы | 3 сервера, 10 tool'ов суммарно (4 + 3 + 3) | `MCP_SERVERS.md` |
+| Skill | `itinerary-formatter` skill | `skill/itinerary-formatter/SKILL.md` |
+| RAG: chunking + embedding + Qdrant | Wikivoyage по разделам, `text-embedding-3-small` (1536-dim), Qdrant | `ARCHITECTURE.md` → RAG |
+| Скрапинг | Wikivoyage для городов | `scripts/ingest_wikivoyage.py` |
 | Мультимодальность | OpenAI mini vision определяет landmark с фото, результат идёт в граф | `ARCHITECTURE.md` → нода `vision_identify` |
-| LangSmith логирование | Все LLM-вызовы и ноды графа авто-трассируются. **Прогнано:** projects `mini-41-8980574a`, `mini-4o-ebf8458a`, dataset `trip-planner-golden-v1` | env: `LANGSMITH_TRACING=true` |
-| Golden dataset + ≥ 2 метрики, автопрогон | **10 примеров прогнано** (по чек-листу спеки курса п. 8; раздел 3.3 требует "не менее 30" — противоречие внутри спеки, следуем чек-листу). Метрики: `constraint_adherence` + `faithfulness` | `EVALS_PLAN.md`, `evals/results/mini-41.csv`, `evals/results/mini-4o.csv` |
-| A/B эксперимент | `gpt-4.1-mini` vs `gpt-4o-mini` на одном датасете — **прогнан** | `evals/results/ab_mini_41_vs_4o.md` |
+| LangSmith логирование | Все LLM-вызовы и ноды графа авто-трассируются | env: `LANGSMITH_TRACING=true` |
+| Golden dataset + ≥ 2 метрики, автопрогон | 10 примеров прогнано. Метрики: `constraint_adherence` + `faithfulness` | `EVALS_PLAN.md`, `evals/results/mini-41.csv`, `evals/results/mini-4o.csv` |
+| A/B эксперимент | `gpt-4.1-mini` vs `gpt-4o-mini` на одном датасете — прогнан | `evals/results/ab_mini_41_vs_4o.md` |
 | Обоснование выбора LLM | Раздел "LLM choice rationale" в этом файле + подтверждено evals (faithfulness 0.965 vs 0.507) | ниже |
 | Обоснование гиперпараметров | Раздел "Hyperparameters" в этом файле | ниже |
 

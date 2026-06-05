@@ -2,8 +2,6 @@
 
 Персонализированный day-by-day планировщик путешествий: пользователь задаёт город, бюджет, интересы и dietary restrictions; LLM-агент собирает план, принимает текстовые правки, экспортирует PDF.
 
-**Учебный проект** курса по LLM-стеку. Демонстрирует LangGraph, MCP, RAG, мультимодальность, LangSmith evals.
-
 **Статус:** реализован и протестирован. Verified flow (через Playwright): форма → SSE-прогресс по 14 нодам графа → готовый план с реальными местами из OSM, halal-маркерами и погодой → текстовая правка → accept → PDF-экспорт. Evals прогнаны (`evals/results/ab_mini_41_vs_4o.md`).
 
 **A/B результаты (10 примеров):**
@@ -63,7 +61,7 @@ SKIP_NETWORK_TESTS=0 pytest mcp_servers/travel-tools/tests/
 
 # Evals A/B: gpt-4.1-mini vs gpt-4o-mini.
 # pandas требуется только для CSV-экспорта; в backend-образе ставится `pip install pandas`.
-docker exec nfactorial-project-backend-1 pip install pandas    # one-time, если ещё не стоит
+docker exec halyk-lt-turagents-backend-1 pip install pandas    # one-time, если ещё не стоит
 python evals/upload_dataset.py                                  # one-time upload в LangSmith
 EVAL_MODE=true OPENAI_MODEL=gpt-4.1-mini python evals/run.py --experiment-prefix mini-41
 EVAL_MODE=true OPENAI_MODEL=gpt-4o-mini  python evals/run.py --experiment-prefix mini-4o
