@@ -1,4 +1,4 @@
-"""Node 3: vision_identify — OpenAI mini vision on uploaded photo."""
+"""Node 3: vision_identify — OpenAI nano vision on uploaded photo."""
 from __future__ import annotations
 
 import json

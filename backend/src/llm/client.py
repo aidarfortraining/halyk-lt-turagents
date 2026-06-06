@@ -1,8 +1,8 @@
-"""Unified LLM client for OpenAI mini models via langchain-openai.
+"""Unified LLM client for OpenAI models via langchain-openai.
 
-Single mini model is used for every LLM call in the graph (vision, edit intent,
+A single model is used for every LLM call in the graph (vision, edit intent,
 generate_plan, LLM-as-judge). The model name is configurable via env (`OPENAI_MODEL`).
-A second mini model name (`OPENAI_MODEL_B`) exists only for the A/B evals experiment.
+A second model name (`OPENAI_MODEL_B`) exists only for the A/B evals experiment.
 
 All LLM calls flow through this module so LangSmith tracing, retries, and structured
 output are uniformly applied.

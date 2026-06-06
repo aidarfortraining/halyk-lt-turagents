@@ -4,9 +4,12 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink: "#1a3552",
-        accent: "#d97706",
-        muted: "#f5f6f8",
+        ink: "#111827",
+        halyk: "#00B14F",
+        "halyk-dark": "#009644",
+        "halyk-light": "#E6F7EE",
+        accent: "#00B14F",
+        muted: "#eef1f4",
       },
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],

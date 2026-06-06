@@ -4,14 +4,14 @@
 
 **Статус:** реализован и протестирован. Verified flow (через Playwright): форма → SSE-прогресс по 14 нодам графа → готовый план с реальными местами из OSM, halal-маркерами и погодой → текстовая правка → accept → PDF-экспорт. Evals прогнаны (`evals/results/ab_mini_41_vs_4o.md`).
 
-**A/B результаты (10 примеров):**
+**A/B результаты (10 примеров, исторический прогон):**
 
-| Metric | gpt-4.1-mini | gpt-4o-mini | Δ |
+| Metric | Arm A | Arm B | Δ |
 |---|---:|---:|---:|
 | constraint_adherence | 0.800 | 0.800 | 0 |
 | faithfulness | **0.965** | 0.507 | −0.458 |
 
-`gpt-4.1-mini` лучше для faithfulness почти в 2 раза — обоснование выбора как primary.
+Оба arm'а сейчас сконфигурированы на `gpt-5.4-nano` (`OPENAI_MODEL` / `OPENAI_MODEL_B`). Цифры — из исторического A/B-прогона; Arm A держит faithfulness-target 0.965, что обосновывает выбор `gpt-5.4-nano` как primary (жёсткое правило «места — только из tool-output», см. CLAUDE.md → Hallucinated places).
 
 ## Документация для разработки
 
@@ -59,12 +59,12 @@ pytest mcp_servers/trip-utilities/tests/               # dietary heuristics + co
 # Network-зависимые тесты (Overpass, Open-Meteo)
 SKIP_NETWORK_TESTS=0 pytest mcp_servers/travel-tools/tests/
 
-# Evals A/B: gpt-4.1-mini vs gpt-4o-mini.
+# Evals A/B: gpt-5.4-nano vs gpt-5.4-nano.
 # pandas требуется только для CSV-экспорта; в backend-образе ставится `pip install pandas`.
 docker exec halyk-lt-turagents-backend-1 pip install pandas    # one-time, если ещё не стоит
 python evals/upload_dataset.py                                  # one-time upload в LangSmith
-EVAL_MODE=true OPENAI_MODEL=gpt-4.1-mini python evals/run.py --experiment-prefix mini-41
-EVAL_MODE=true OPENAI_MODEL=gpt-4o-mini  python evals/run.py --experiment-prefix mini-4o
+EVAL_MODE=true OPENAI_MODEL=gpt-5.4-nano python evals/run.py --experiment-prefix mini-41
+EVAL_MODE=true OPENAI_MODEL=gpt-5.4-nano  python evals/run.py --experiment-prefix mini-4o
 python evals/compare_experiments.py --a mini-41 --b mini-4o
 ```
 
@@ -72,7 +72,8 @@ python evals/compare_experiments.py --a mini-41 --b mini-4o
 
 - **Backend:** Python 3.11+, FastAPI, LangGraph, LangSmith, Qdrant
 - **Frontend:** Vite + React 19 + TypeScript + Tailwind + shadcn/ui
-- **LLM:** OpenAI `gpt-4.1-mini` (primary) + `gpt-4o-mini` (A/B-arm)
+- **UI-тема:** цветовая гамма Halyk — primary green `#00B14F` (токены `halyk`/`halyk-dark`/`halyk-light` в `frontend/tailwind.config.js`), фон `#EEF1F4`
+- **LLM:** OpenAI `gpt-5.4-nano` (primary `OPENAI_MODEL` + A/B-arm `OPENAI_MODEL_B`)
 - **MCP:** 3 свои servers (travel-tools, city-knowledge, trip-utilities)
 - **RAG:** Wikivoyage → chunking by section → `text-embedding-3-small` (1536-dim) → Qdrant
 
@@ -93,6 +94,9 @@ trip-planner/
 
 - **Пустой `OPENAI_BASE_URL=` в `.env`** — openai SDK падает с `httpx.UnsupportedProtocol`. Либо удалите строку, либо закомментируйте. Только укажите значение, если используете Azure/прокси.
 - **Hang на экране "Прогресс"** — должно быть исправлено. Признаки: события не доходят до frontend. Причины: либо browser-fragment в URL EventSource (исправлено отдельным параметром `streamKey`), либо nginx buffering (исправлено заголовком `X-Accel-Buffering: no`). Frontend имеет polling-fallback /state каждые 3с.
+- **Сброс сессии при клике на ссылку в плане / «назад»** — исправлено. Ссылки в плане (OSM/Wikivoyage) открываются в новой вкладке (`target=_blank`), а `session_id` персистится в localStorage (`tp_session_id`) и восстанавливается при загрузке через `/state` — клик по ссылке или browser-«назад» больше не теряет план. Сессии in-memory: после рестарта backend они пропадают (восстановление ловит 404 → создаётся новая).
+- **«Скачать PDF» не качается** — исправлено. Кнопка делает `fetch → blob → download` (`downloadPdf` в `frontend/src/api/client.ts`) с именем `trip-xxxxxxxx.pdf` вместо `<a target=_blank>`; ошибки (409 «план не готов» / 404 «сессия пропала») показываются под кнопкой. Endpoint `/sessions/{id}/pdf` отдаёт `Content-Disposition: attachment` (weasyprint).
+- **Правки фронта не видны после `docker compose restart`** — frontend это build-time static (nginx), исходники НЕ смонтированы как volume (в отличие от backend). После изменений во `frontend/` нужен `docker compose up -d --build frontend`.
 - **Qdrant `Api key is used with an insecure connection`** — warning, не блокер. Возникает если `QDRANT_API_KEY` непустой а `QDRANT_URL` на http. Локально безопасно игнорировать.
 - **Qdrant `client vX incompatible with server v1.11`** — устранено: `qdrant-client` запинен на `>=1.11.0,<1.12.0` (backend + city-knowledge) под server-образ `qdrant/qdrant:v1.11.0` — совпадение major.minor. Если поднимаете server-образ — синхронно поднимите и пин клиента.
 - **Overpass 504 / `get_weather_forecast` 502** — внешние API нестабильны. `travel-tools._overpass_query` крутит 5 попыток через 3 зеркала с backoff. Open-Meteo 502 — единичные, граф продолжает без weather для конкретного примера.

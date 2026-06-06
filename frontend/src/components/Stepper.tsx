@@ -23,9 +23,9 @@ export function Stepper({
         const circle =
           "inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold " +
           (active
-            ? "bg-ink text-white"
+            ? "bg-halyk text-white"
             : done
-              ? "bg-emerald-500 text-white"
+              ? "bg-halyk text-white"
               : "bg-slate-200 text-slate-500");
         const text =
           active ? "font-semibold text-ink" : done ? "text-slate-600" : "text-slate-400";

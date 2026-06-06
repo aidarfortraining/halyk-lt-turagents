@@ -22,7 +22,7 @@
 
 MCP-серверы — отдельные процессы (запускаются как subprocess из backend через stdio). Они **не импортируют** код из `backend/src/schemas/`. Pydantic-классы (Place, Restaurant, Plan, CostBreakdown, GuideChunk, CityOverview, WeatherDaily и т.д.) **дублируются локально** в каждом MCP-сервере, в `mcp_servers/<name>/schemas.py`.
 
-Это намеренный trade-off для учебного проекта (избегаем shared-package сложности). На границе MCP передаётся JSON; mcp SDK + langchain-mcp-adapters автоматически конвертируют pydantic ↔ JSON, поэтому идентичность Python-классов не требуется — важна только структура.
+Это намеренный trade-off (избегаем shared-package сложности). На границе MCP передаётся JSON; mcp SDK + langchain-mcp-adapters автоматически конвертируют pydantic ↔ JSON, поэтому идентичность Python-классов не требуется — важна только структура.
 
 ### Type signatures и ToolErrorResponse
 

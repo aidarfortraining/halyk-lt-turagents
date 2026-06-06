@@ -10,5 +10,5 @@
 ## Notes
 
 - All runs share the same golden dataset (`trip-planner-golden-v1`).
-- LLM-as-judge metrics use the project's primary OpenAI mini model at temperature 0.0.
+- LLM-as-judge metrics use the project's primary OpenAI nano model at temperature 0.0.
 - Differences below 0.05 are within noise on 10-example datasets.

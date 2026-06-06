@@ -17,6 +17,11 @@ import { PlanView } from "@/components/PlanView";
 import { EditBox } from "@/components/EditBox";
 import { Stepper } from "@/components/Stepper";
 
+// Persist the active session id so a reload or a browser "back" (e.g. after opening an
+// OSM/Wikivoyage link) restores the in-progress / finalized plan instead of silently
+// spinning up a fresh empty session and dropping everything.
+const SESSION_KEY = "tp_session_id";
+
 export default function App() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
@@ -28,8 +33,32 @@ export default function App() {
 
   useEffect(() => {
     (async () => {
+      // Try to resume a stored session first so navigating back doesn't reset the app.
+      const stored = localStorage.getItem(SESSION_KEY);
+      if (stored) {
+        try {
+          const s = await getSessionState(stored);
+          setSessionId(stored);
+          setSessionState(s);
+          setLastInput({
+            city: s.city,
+            days: s.days,
+            budget_usd: s.budget_usd,
+            interests: s.interests,
+            dietary: s.dietary,
+          });
+          // Restore into the plan/progress view when the run has produced anything reviewable.
+          if (s.plan_markdown || s.status === "awaiting_review" || s.status === "finalized" || s.awaiting_input) {
+            setSubmitted(true);
+          }
+          return;
+        } catch {
+          localStorage.removeItem(SESSION_KEY); // stored session gone (e.g. backend restart) — start fresh
+        }
+      }
       const s = await createSession();
       setSessionId(s.session_id);
+      localStorage.setItem(SESSION_KEY, s.session_id);
     })().catch(console.error);
   }, []);
 
@@ -87,6 +116,7 @@ export default function App() {
     try {
       const s = await createSession();
       setSessionId(s.session_id);
+      localStorage.setItem(SESSION_KEY, s.session_id);
     } catch (e) {
       console.error(e);
     }
@@ -223,7 +253,7 @@ export default function App() {
         )}
 
         {finalized && (
-          <p className="text-sm text-emerald-700">
+          <p className="text-sm text-halyk-dark">
             План финализирован. Вы можете скачать PDF и поделиться им.
           </p>
         )}

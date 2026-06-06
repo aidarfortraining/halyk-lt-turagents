@@ -1,4 +1,4 @@
-"""Constraint adherence judge — LLM-as-judge via OpenAI mini at temperature 0.0."""
+"""Constraint adherence judge — LLM-as-judge via OpenAI nano at temperature 0.0."""
 from __future__ import annotations
 
 import json

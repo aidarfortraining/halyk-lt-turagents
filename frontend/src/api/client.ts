@@ -77,6 +77,28 @@ export function pdfUrl(sessionId: string) {
   return `${BASE}/sessions/${sessionId}/pdf`;
 }
 
+/**
+ * Fetch the generated PDF and trigger a real browser download. Using a blob (instead of
+ * an <a href target=_blank>) keeps the SPA mounted — no navigation away, no session reset —
+ * and surfaces backend errors (409 plan-not-ready / 404 session-gone) to the caller.
+ */
+export async function downloadPdf(sessionId: string) {
+  const res = await fetch(pdfUrl(sessionId));
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`${res.status} ${detail}`);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `trip-${sessionId.slice(0, 8)}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export function streamUrl(sessionId: string) {
   return `${BASE}/sessions/${sessionId}/stream`;
 }

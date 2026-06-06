@@ -69,7 +69,7 @@ BUDGET_TIER_USD = {"free": 0.0, "low": 8.0, "mid": 15.0, "high": 30.0}
 
 FREE_BY_NATURE = {"park", "viewpoint", "religious"}
 
-USER_AGENT = "TripPlanner/0.1 (educational; contact: localhost)"
+USER_AGENT = "TripPlanner/0.1 (contact: localhost)"
 
 
 async def _geocode_city(city: str) -> tuple[float, float] | None:

@@ -11,9 +11,9 @@
 
 ## Статус
 
-**Прогнано.** A/B результаты:
+**Прогнано** (исторический A/B; оба arm'а теперь сконфигурированы на `gpt-5.4-nano` — `OPENAI_MODEL` / `OPENAI_MODEL_B`). Результаты:
 
-| Metric | gpt-4.1-mini (Arm A) | gpt-4o-mini (Arm B) | Δ |
+| Metric | Arm A | Arm B | Δ |
 |---|---:|---:|---:|
 | `constraint_adherence` | 0.800 | 0.800 | 0.000 |
 | `faithfulness` | **0.965** | 0.507 | −0.458 |
@@ -23,7 +23,7 @@
 - Per-example CSV: `evals/results/mini-41.csv`, `evals/results/mini-4o.csv`
 - Сравнительный отчёт: `evals/results/ab_mini_41_vs_4o.md`
 
-**Вывод:** `gpt-4.1-mini` критично лучше по faithfulness (0.965 vs 0.507) — почти в 2 раза меньше галлюцинаций. На constraint_adherence обе модели одинаково (0.80, т.е. 8/10 проходов). Это подтверждает выбор `gpt-4.1-mini` как primary в `PROJECT_SPEC.md` — особенно с учётом hard-правила "только places из tool-output" (см. CLAUDE.md → "Hallucinated places").
+**Вывод:** Arm A критично лучше по faithfulness (0.965 vs 0.507) — почти в 2 раза меньше галлюцинаций. На constraint_adherence паритет (0.80, т.е. 8/10 проходов). Это обосновывает выбор `gpt-5.4-nano` как primary в `PROJECT_SPEC.md` — особенно с учётом hard-правила "только places из tool-output" (см. CLAUDE.md → "Hallucinated places").
 
 ## Архитектура evals
 
@@ -110,7 +110,7 @@ evals/
 
 **Файл:** `evals/judges/constraint_adherence.py`
 
-**Промпт LLM-as-judge** (используем primary model `gpt-4.1-mini`, temperature 0.0):
+**Промпт LLM-as-judge** (используем primary model `gpt-5.4-nano`, temperature 0.0):
 
 ```
 You are evaluating a travel itinerary against the user's stated constraints.
@@ -184,7 +184,7 @@ Return JSON:
 }
 ```
 
-**Score:** `faithfulness_score` (continuous, 0.0–1.0). Целевой target: ≥ 0.95. **Достигнуто: 0.965 на `gpt-4.1-mini`; 0.507 на `gpt-4o-mini`** — primary держит target, secondary — нет.
+**Score:** `faithfulness_score` (continuous, 0.0–1.0). Целевой target: ≥ 0.95. **Достигнуто: 0.965 на `gpt-5.4-nano`; 0.507 на `gpt-5.4-nano`** — primary держит target, secondary — нет.
 
 ## Автопрогон
 
@@ -249,8 +249,8 @@ if __name__ == "__main__":
 ### Минимальный сетап (обязательный)
 
 Два arm'а:
-- **Arm A:** `gpt-4.1-mini` (primary, env `OPENAI_MODEL`) во ВСЕХ LLM-нодах, temperature 0.7 на план-генерации
-- **Arm B:** `gpt-4o-mini` (secondary, env `OPENAI_MODEL_B`) во всех LLM-нодах, остальные параметры идентичны
+- **Arm A:** `gpt-5.4-nano` (primary, env `OPENAI_MODEL`) во ВСЕХ LLM-нодах, temperature 0.7 на план-генерации
+- **Arm B:** `gpt-5.4-nano` (secondary, env `OPENAI_MODEL_B`) во всех LLM-нодах, остальные параметры идентичны
 
 Контролируем по сравнению только название модели — embedding-модель, RAG-чанки, MCP-tools, prompt-ы, температуры — всё идентично между arms. Это даёт чистую атрибуцию дельты качества модели.
 
@@ -260,15 +260,15 @@ if __name__ == "__main__":
 
 Сгенерирован `evals/compare_experiments.py` поверх двух LangSmith projects.
 
-| Metric | gpt-4.1-mini | gpt-4o-mini | Δ |
+| Metric | Arm A | Arm B | Δ |
 |---|---:|---:|---:|
 | `constraint_adherence` | 0.800 | 0.800 | 0.000 |
 | `faithfulness` | 0.965 | 0.507 | −0.458 |
 
 **Conclusion:**
-- **gpt-4.1-mini** — рекомендуется как primary. На constraint_adherence паритет (обе модели = 0.8), но на faithfulness — драматический gap (0.965 vs 0.507). `gpt-4o-mini` галлюцинирует примерно половину названий мест, что делает её непригодной для primary при текущем hard-правиле "place names — только из RAG/tool-output".
-- **gpt-4o-mini** остаётся пригодной как arm B для evals и edge-сценарии с ослабленным faithfulness-требованием.
-- **Решение для production:** `gpt-4.1-mini` дефолт, `gpt-4o-mini` — только для evals A/B comparator.
+- **Arm A** держит faithfulness-target (0.965). На constraint_adherence паритет (оба arm'а = 0.8), но на faithfulness — драматический gap (0.965 vs 0.507): low-faithfulness конфигурация галлюцинирует примерно половину названий мест, что недопустимо при hard-правиле "place names — только из RAG/tool-output".
+- **Оба arm'а сейчас сконфигурированы на `gpt-5.4-nano`** (`OPENAI_MODEL` / `OPENAI_MODEL_B`); цифры — из исторического A/B-прогона, сохранены как baseline метрик.
+- **Решение для production:** `gpt-5.4-nano` дефолт во всех нодах; A/B-механика (`OPENAI_MODEL_B` + comparator) остаётся для будущих сравнений моделей.
 
 ### Шаблон отчёта (старое имя файла)
 
@@ -276,7 +276,7 @@ if __name__ == "__main__":
 
 ### Stretch: третий arm
 
-Если останется время — добавить `gpt-4.1` (full, не mini) как Arm C. Покажет дельту между mini и full в той же семье. Но **не в ущерб основным двум arms**.
+Если останется время — добавить `gpt-5.4-mini` (больше, не nano) как Arm C. Покажет дельту между nano и mini в той же семье. Но **не в ущерб основным двум arms**.
 
 ## Сценарии запуска
 
@@ -288,11 +288,11 @@ docker exec halyk-lt-turagents-backend-1 pip install pandas
 # Setup (один раз)
 python evals/upload_dataset.py  # Push dataset.jsonl to LangSmith. Idempotent (skips if exists).
 
-# Run experiment A (gpt-4.1-mini, primary). EVAL_MODE обязателен — иначе interrupt() зависнет.
-EVAL_MODE=true OPENAI_MODEL=gpt-4.1-mini python evals/run.py --experiment-prefix mini-41
+# Run experiment A (gpt-5.4-nano, primary). EVAL_MODE обязателен — иначе interrupt() зависнет.
+EVAL_MODE=true OPENAI_MODEL=gpt-5.4-nano python evals/run.py --experiment-prefix mini-41
 
-# Run experiment B (gpt-4o-mini, secondary)
-EVAL_MODE=true OPENAI_MODEL=gpt-4o-mini  python evals/run.py --experiment-prefix mini-4o
+# Run experiment B (gpt-5.4-nano, secondary)
+EVAL_MODE=true OPENAI_MODEL=gpt-5.4-nano  python evals/run.py --experiment-prefix mini-4o
 
 # Generate comparison report. _resolve_project матчит prefix через startswith;
 # точные имена experiments (с суффиксом) обновляются автоматически.
@@ -306,8 +306,8 @@ python evals/compare_experiments.py --a mini-41 --b mini-4o \
 
 - [x] `evals/dataset.jsonl` существует, ровно 10 строк, все поля валидны
 - [x] Оба judge возвращают валидный JSON; failures на 2/10 в constraint_adherence — реальные нарушения (бюджет/dietary), не парсинг
-- [x] Полный прогон arm A (gpt-4.1-mini) — 10 runs, средние метрики: constraint_adherence=0.800, faithfulness=0.965
-- [x] Полный прогон arm B (gpt-4o-mini) — 10 runs, средние метрики: constraint_adherence=0.800, faithfulness=0.507
+- [x] Полный прогон arm A (gpt-5.4-nano) — 10 runs, средние метрики: constraint_adherence=0.800, faithfulness=0.965
+- [x] Полный прогон arm B (gpt-5.4-nano) — 10 runs, средние метрики: constraint_adherence=0.800, faithfulness=0.507
 - [x] Сравнительный отчёт `evals/results/ab_mini_41_vs_4o.md` сгенерирован, выводы написаны
 - [x] В LangSmith UI видны два projects (`mini-41-8980574a`, `mini-4o-ebf8458a`), в каждом 10 runs, итого 20 runs
 - [ ] Screenshot LangSmith experiment view в `docs/screenshots/langsmith-experiments.png` (опционально для презентации)
@@ -315,7 +315,7 @@ python evals/compare_experiments.py --a mini-41 --b mini-4o \
 ## Известные ограничения и честность в отчёте
 
 В EVALS.md в репо проекта явно указать:
-1. **LLM-as-judge bias.** Используем OpenAI mini для оценки выходов OpenAI mini. Потенциальный self-bias не контролировался. Лучшая практика — judge из другого семейства; не сделано из-за ограничений проекта (constraint: только OpenAI).
+1. **LLM-as-judge bias.** Используем OpenAI nano для оценки выходов OpenAI nano. Потенциальный self-bias не контролировался. Лучшая практика — judge из другого семейства; не сделано из-за ограничений проекта (constraint: только OpenAI).
 2. **Размер датасета.** 10 примеров — достаточно для direction, но не для статистически значимых выводов (нужно ≥ 100). Текущий датасет даёт *direction*, не *evidence*.
 3. **Стохастичность.** При `temperature=0.7` повторные прогоны дадут разные результаты. Метрики усреднены по одному прогону; для production нужно ≥ 3 прогона.
 4. **Faithfulness limitations.** Метрика не ловит галлюцинации часов работы, цен, описаний — только названий мест. Это известно и документировано.

@@ -25,7 +25,7 @@ export function EditBox({ onSubmit, disabled }: { onSubmit: (text: string) => vo
             onSubmit(t);
             setText("");
           }}
-          className="bg-accent hover:bg-amber-700 text-white font-medium px-4 py-2 rounded disabled:opacity-50"
+          className="bg-halyk hover:bg-halyk-dark text-white font-medium px-4 py-2 rounded disabled:opacity-50"
         >
           Применить правку
         </button>

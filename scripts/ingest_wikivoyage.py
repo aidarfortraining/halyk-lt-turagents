@@ -145,7 +145,7 @@ def ingest_city(city: str, *, dry_run: bool = False) -> int:
     meta = CITY_META_DEFAULTS.get(city, {"country": "", "currency": "USD"})
     title = city.replace(" ", "_")
     log.info("scraping %s", title)
-    with httpx.Client(headers={"User-Agent": "TripPlanner-Ingest/0.1 (educational)"}) as cli:
+    with httpx.Client(headers={"User-Agent": "TripPlanner-Ingest/0.1"}) as cli:
         plain, source_url = _api_fetch_page(cli, title)
     if not plain or len(plain) < 500:
         log.warning("page for %s looks empty / too short (%d chars)", city, len(plain))

@@ -25,7 +25,7 @@ export function GraphProgress({ events, closed }: { events: StreamEvent[]; close
       <ol className="text-sm space-y-1">
         {nodes.map((e, i) => (
           <li key={i} className="flex items-center gap-2">
-            <span className="inline-block w-4 h-4 rounded-full bg-emerald-500" />
+            <span className="inline-block w-4 h-4 rounded-full bg-halyk" />
             <span className="font-medium">{NODE_LABELS[e.node] || e.node}</span>
             <span className="text-slate-400 text-xs">({e.node})</span>
           </li>

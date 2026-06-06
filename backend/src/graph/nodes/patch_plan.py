@@ -239,8 +239,28 @@ async def _rich_rerender(plan: Plan, state: TripState, edit_note: str) -> str:
         itinerary=_format_itinerary_for_llm(plan, state),
         weather=_format_weather_for_llm(state),
     )
-    md = await ainvoke_text(system=system, user=user, temperature=0.4, max_tokens=4096)
+    md = await ainvoke_text(system=system, user=user, temperature=0.2, max_tokens=4096)
     return _strip_outer_fence(md or "")
+
+
+def _covers_place_names(markdown: str, plan: Plan) -> bool:
+    """True if the rerendered markdown still mentions most of the plan's place names.
+
+    A weak model sometimes anonymizes blocks (drops names, halal markers, OSM links) on the
+    edit rerender path. When that happens we discard the LLM output and use the deterministic
+    rich render instead, so the edited plan never looks degraded.
+    """
+    names = [
+        b.place_name
+        for d in plan.days
+        for b in d.blocks
+        if b.place_type != "transition" and b.place_name
+    ]
+    if not names:
+        return True
+    md_lower = markdown.lower()
+    present = sum(1 for n in names if n.lower() in md_lower)
+    return present >= max(1, int(len(names) * 0.6))
 
 
 def _strip_outer_fence(md: str) -> str:
@@ -262,8 +282,11 @@ def _render_markdown(
     budget_usd: float,
     days_total: int,
     state: TripState | None = None,
+    cost: CostBreakdown | None = None,
 ) -> str:
-    """Deterministic bare render — fallback only, when the LLM rerender returns empty."""
+    """Deterministic rich render — faithful fallback when the LLM rerender is empty or drops
+    place names. Reproduces the demo-quality layout: dietary markers, OSM links, per-day totals,
+    a summary budget table and a sources section, all straight from the structured plan."""
     weather_by_day: dict[int, str] = {}
     if state and state.weather and state.weather.entries:
         for i, e in enumerate(state.weather.entries[:days_total], start=1):
@@ -271,10 +294,11 @@ def _render_markdown(
                 f"погода: {e.weather_desc}, {e.temp_min_c:.0f}°–{e.temp_max_c:.0f}°C, {e.precipitation_mm:.0f}мм осадков"
             )
 
+    per_day_budget = budget_usd / max(days_total, 1)
     parts = [
         f"# Поездка в {city}, {days_total} дней",
         "",
-        f"**Бюджет:** ${budget_usd:.0f} (${budget_usd / max(days_total, 1):.0f} в день)",
+        f"**Бюджет:** ${budget_usd:.0f} (${per_day_budget:.0f} в день)",
     ]
     if state and state.interests:
         parts.append(f"**Интересы:** {', '.join(state.interests)}")
@@ -282,6 +306,7 @@ def _render_markdown(
         parts.append(f"**Пищевые ограничения:** {', '.join(state.dietary)}")
     parts.append("")
 
+    sources: list[tuple[str, str]] = []
     grand = 0.0
     for d in plan.days:
         header = f"## День {d.day_number}"
@@ -293,21 +318,60 @@ def _render_markdown(
             parts.append("")
         day_total = 0.0
         for b in sorted(d.blocks, key=lambda x: x.start_time):
-            marker = f" {b.dietary_marker}" if b.dietary_marker else ""
+            if b.place_type == "transition":
+                continue
             link = b.source_url or "#"
-            parts.append(
-                f"- **{b.start_time}** — [{b.place_name}]({link}){marker} — "
-                f"{'обед/ужин' if b.place_type == 'restaurant' else 'визит'} — "
-                f"${b.estimated_cost_usd:.0f}"
-            )
+            if b.place_type == "restaurant":
+                raw_marker = _dietary_marker(state, b.place_id) if state else (b.dietary_marker or "")
+                marker = f" {raw_marker}" if raw_marker else ""
+                kind = b.notes or "ресторан"
+                parts.append(
+                    f"- **{b.start_time}** — [{b.place_name}]({link}){marker} — {kind} — ${b.estimated_cost_usd:.0f}"
+                )
+            else:
+                kind = b.notes or "визит"
+                parts.append(
+                    f"- **{b.start_time}** — [{b.place_name}]({link}) — {kind} — "
+                    f"${b.estimated_cost_usd:.0f} — ~{b.estimated_duration_minutes} мин"
+                )
+            if b.place_name and link != "#":
+                sources.append((b.place_name, link))
             day_total += b.estimated_cost_usd
         parts.append("")
-        warn = " ⚠ превышение" if day_total > budget_usd / max(days_total, 1) else ""
-        parts.append(f"**Итого за день:** ${day_total:.0f}{warn}")
+        warn = " ⚠ превышение" if day_total > per_day_budget else ""
+        parts.append(f"**Итого за день:** ${day_total:.0f} (из бюджета ${per_day_budget:.0f}){warn}")
         parts.append("")
         grand += day_total
+
     parts.append("## Сводный бюджет")
-    parts.append(f"Всего: **${grand:.0f}** из ${budget_usd:.0f}.")
+    if cost and cost.per_day:
+        parts.append("")
+        parts.append("| День | Достопримечательности | Рестораны | Транспорт | Итого |")
+        parts.append("|---|---|---|---|---|")
+        for cd in cost.per_day:
+            parts.append(
+                f"| День {cd.day_number} | ${cd.attractions_usd:.0f} | ${cd.restaurants_usd:.0f} | "
+                f"${cd.transport_usd:.0f} | ${cd.total_usd:.0f} |"
+            )
+        total = cost.grand_total_usd or grand
+        parts.append(f"| **Всего** | | | | **${total:.0f}** |")
+        parts.append("")
+        pct = (total / budget_usd * 100) if budget_usd else 0.0
+        parts.append(f"Из заложенного бюджета **${budget_usd:.0f}** — **{pct:.0f}%** использовано.")
+    else:
+        pct = (grand / budget_usd * 100) if budget_usd else 0.0
+        parts.append(f"Всего: **${grand:.0f}** из ${budget_usd:.0f} ({pct:.0f}%).")
+
+    if sources:
+        seen: set[str] = set()
+        parts.append("")
+        parts.append("## Источники")
+        parts.append("OpenStreetMap:")
+        for name, link in sources:
+            if link in seen:
+                continue
+            seen.add(link)
+            parts.append(f"- [{name}]({link})")
     return "\n".join(parts)
 
 
@@ -391,11 +455,11 @@ async def patch_plan(state: TripState) -> dict:
         new_markdown = _prepend_noop_notice(state.plan_markdown, intent)
         notes = f"{notes}; no change (markdown preserved + notice)"
     else:
-        new_markdown = await _rich_rerender(new_plan, state, f"{intent.action}: {intent.target}")
-        if not new_markdown:
-            log.warning("patch_plan: LLM rerender empty, falling back to bare render")
-            new_markdown = _render_markdown(new_plan, state.city, state.budget_usd, state.days, state)
         cost = await _recompute_cost(new_plan, state.plan_cost_breakdown)
+        new_markdown = await _rich_rerender(new_plan, state, f"{intent.action}: {intent.target}")
+        if not new_markdown or not _covers_place_names(new_markdown, new_plan):
+            log.warning("patch_plan: LLM rerender empty/unfaithful — using deterministic rich render")
+            new_markdown = _render_markdown(new_plan, state.city, state.budget_usd, state.days, state, cost)
 
     updated_record = record.model_copy(update={"applied": True, "notes": notes})
     new_history = list(state.edit_history[:-1]) + [updated_record]

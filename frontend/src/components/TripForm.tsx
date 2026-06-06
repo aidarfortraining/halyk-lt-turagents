@@ -109,8 +109,8 @@ export function TripForm({
                     className={
                       "px-3 py-1 rounded-full text-sm border transition " +
                       (checked
-                        ? "bg-ink text-white border-ink"
-                        : "bg-white text-ink border-slate-300 hover:bg-slate-50")
+                        ? "bg-halyk text-white border-halyk"
+                        : "bg-white text-ink border-slate-300 hover:bg-halyk-light hover:border-halyk")
                     }
                   >
                     {i}
@@ -144,8 +144,8 @@ export function TripForm({
                     className={
                       "px-3 py-1 rounded-full text-sm border transition " +
                       (checked
-                        ? "bg-accent text-white border-accent"
-                        : "bg-white text-ink border-slate-300 hover:bg-slate-50")
+                        ? "bg-halyk text-white border-halyk"
+                        : "bg-white text-ink border-slate-300 hover:bg-halyk-light hover:border-halyk")
                     }
                   >
                     {d}
@@ -160,7 +160,7 @@ export function TripForm({
       <button
         type="submit"
         disabled={disabled}
-        className="bg-ink hover:bg-slate-700 text-white font-medium px-5 py-2 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+        className="bg-halyk hover:bg-halyk-dark text-white font-medium px-5 py-2 rounded disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {disabled ? "Генерирую план..." : "Построить план"}
       </button>

@@ -29,8 +29,8 @@
    ▼               ▼                  ▼                   ▼
 ┌────────┐  ┌─────────────┐    ┌──────────────┐    ┌────────────┐
 │OpenAI  │  │ MCP server: │    │ MCP server:  │    │ MCP server:│
-│gpt-4.1 │  │ travel-     │    │ city-        │    │ trip-      │
-│-mini   │  │ tools       │    │ knowledge    │    │ utilities  │
+│gpt-5.4 │  │ travel-     │    │ city-        │    │ trip-      │
+│-nano   │  │ tools       │    │ knowledge    │    │ utilities  │
 │+Skill  │  │ (4 tools)   │    │ (3 tools)    │    │ (3 tools)  │
 └────────┘  └──────┬──────┘    └──────┬───────┘    └────┬───────┘
                    │                  │                 │
@@ -62,7 +62,7 @@ LangSmith подключается через env-переменные (`LANGSMI
                 ┌───── YES ───┴── NO ─────┐
                 ▼                          │
        [3] vision_identify                 │
-          (gpt-4.1-mini vision)             │
+          (gpt-5.4-nano vision)             │
           out: {landmark, city, type}      │
                 │                          │
                 ▼                          │
@@ -99,7 +99,7 @@ LangSmith подключается через env-переменные (`LANGSMI
                                           │
                                           ▼
                                   [11] generate_plan
-                                       (gpt-4.1-mini + Skill:
+                                       (gpt-5.4-nano + Skill:
                                         itinerary-formatter)
                                        MCP: trip-utilities.estimate_plan_cost()
                                           │
@@ -110,7 +110,7 @@ LangSmith подключается через env-переменные (`LANGSMI
                               ┌─ EDIT ───┴── ACCEPT ─┐
                               ▼                       ▼
                   [13] parse_edit_intent       [15] finalize_and_export
-                     (gpt-4.1-mini, structured)      (Skill: формат для PDF,
+                     (gpt-5.4-nano, structured)      (Skill: формат для PDF,
                               │                      weasyprint → bytes)
                               ▼                            │
                   [14] patch_plan                          ▼
@@ -126,19 +126,19 @@ LangSmith подключается через env-переменные (`LANGSMI
 |---|---|---|---|---|---|
 | 1 | `collect_input` | sync | — | — | Pydantic-валидация |
 | 2 | `has_photo` branch | conditional | — | — | — |
-| 3 | `vision_identify` | async | gpt-4.1-mini (vision) | — | — |
+| 3 | `vision_identify` | async | gpt-5.4-nano (vision) | — | — |
 | 4 | `enrich_input` | sync | — | — | state merge |
 | 5 | `city_research` | async | — | city-knowledge.search_city_guide + city-knowledge.get_city_overview | Qdrant queries |
 | 6 | `candidate_places` | async | — | travel-tools | External APIs (concurrent fan-out, 75s budget) |
 | 7 | `budget_feasible` branch | sync | — | trip-utilities.estimate_plan_cost | — |
-| 8 | `explain_and_ask` | async + HITL | gpt-4.1-mini | — | `interrupt()` |
+| 8 | `explain_and_ask` | async + HITL | gpt-5.4-nano | — | `interrupt()` |
 | 9 | `cluster_by_day` | sync | — | — | sklearn KMeans |
 | 10 | `optimize_route` | async | — | travel-tools.compute_route | — |
-| 11 | `generate_plan` | async | gpt-4.1-mini + Skill | trip-utilities.estimate_plan_cost | — |
+| 11 | `generate_plan` | async | gpt-5.4-nano + Skill | trip-utilities.estimate_plan_cost | — |
 | 12 | `present_plan` | HITL | — | — | `interrupt()` |
-| 13 | `parse_edit_intent` | async | gpt-4.1-mini | — | structured output |
-| 14 | `patch_plan` | async | gpt-4.1-mini + Skill | trip-utilities.estimate_plan_cost, travel-tools.find_places | state patch + LLM rerender |
-| 15 | `finalize_and_export` | async | gpt-4.1-mini + Skill | — | PDF generation |
+| 13 | `parse_edit_intent` | async | gpt-5.4-nano | — | structured output |
+| 14 | `patch_plan` | async | gpt-5.4-nano + Skill | trip-utilities.estimate_plan_cost, travel-tools.find_places | state patch + LLM rerender + faithfulness-guard (детерминированный rich-fallback) |
+| 15 | `finalize_and_export` | async | gpt-5.4-nano + Skill | — | PDF generation |
 
 ### State schema (pydantic)
 
@@ -156,7 +156,7 @@ class PhotoAnalysis(BaseModel):
     confidence: float        # 0.0–1.0
 
 class EditIntent(BaseModel):
-    """Structured output of parse_edit_intent node (gpt-4.1-mini, structured output)."""
+    """Structured output of parse_edit_intent node (gpt-5.4-nano, structured output)."""
     action: Literal["remove", "add", "replace", "constrain"]
     target: str              # what is affected; for "replace" — the thing being removed
     detail: str | None       # for "replace" — the replacement; for "constrain" — the "$N" cap
@@ -397,7 +397,7 @@ React form → POST /sessions/{id}/input
 ```
 React edit input → POST /sessions/{id}/edit
   → FastAPI resumes graph from present_plan interrupt (Command(resume={accept:false, edit}))
-  → parse_edit_intent (gpt-4.1-mini, structured) → patch_plan → loop back to present_plan
+  → parse_edit_intent (gpt-5.4-nano, structured) → patch_plan → loop back to present_plan
   → SSE emits events
   → React re-renders patched plan
 ```
@@ -469,11 +469,13 @@ config.py (env)
 ## Принципы устойчивости
 
 - **Retries:** LLM-вызовы с экспоненциальным backoff (3 попытки, base 1s) через `tenacity` в `llm/client.py`.
-- **Fallback:** mini → full (`gpt-4.1` / `gpt-4o`) при rate-limit/5xx (опционально, stretch goal).
+- **Fallback:** nano → больше (`gpt-5.4-mini`) при rate-limit/5xx (опционально, stretch goal).
 - **Timeouts:** MCP tool-calls — 15s, LLM-вызовы — 60s.
 - **Idempotency:** session_id — UUID, каждое действие графа checkpoint'ится в SQLite через LangGraph `AsyncSqliteSaver`.
 - **SSE resilience (frontend):** EventSource — primary канал для прогресс-нодов, но `App.tsx` параллельно поллит `/state` каждые 3с пока сессия не finalized. Это страхует от транзиентных SSE-сбоев (прокси-буферизация, разрыв соединения), при которых план в backend готов, но event до клиента не дошёл.
 - **SSE headers:** `api/stream.py` отправляет `X-Accel-Buffering: no` + `Cache-Control: no-cache, no-transform` чтобы запретить буферизацию у nginx и cloud-LB.
+- **Session persistence (frontend):** `App.tsx` сохраняет `session_id` в localStorage (`tp_session_id`) и на маунте восстанавливает сессию через `/state` (показывая готовый план/ревью) вместо создания новой. Reload или browser-«назад» (в т.ч. после клика по внешней ссылке) не сбрасывает план. Сессии in-memory — после рестарта backend restore ловит 404 и создаёт новую.
+- **Plan links + PDF (frontend):** ссылки в плане рендерятся с `target=_blank rel=noopener` (`PlanView`, проп `components` react-markdown) — клик по OSM/Wikivoyage-ссылке не выгружает SPA. «Скачать PDF» использует blob-загрузку (`downloadPdf` в `api/client.ts`: fetch → blob → `a.download`) с обработкой ошибок 409/404, а не `<a target=_blank>`.
 - **Event-queue drain:** при `start_run`/`resume_run` старые события вычищаются из `session.events` — новый SSE-клиент получает только свежие.
 
 ## Режим evals (EVAL_MODE)

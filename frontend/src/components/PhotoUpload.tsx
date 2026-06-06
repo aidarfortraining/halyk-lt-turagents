@@ -28,7 +28,7 @@ export function PhotoUpload({ sessionId, disabled }: { sessionId: string | null;
         Если вы хотите, чтобы конкретное место было в плане — загрузите фото. Vision определит landmark.
       </p>
       <input type="file" accept="image/*" onChange={onChange} disabled={disabled || busy || !sessionId} />
-      {name && <p className="text-xs text-emerald-600 mt-2">Загружено: {name}</p>}
+      {name && <p className="text-xs text-halyk-dark mt-2">Загружено: {name}</p>}
       {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
     </div>
   );

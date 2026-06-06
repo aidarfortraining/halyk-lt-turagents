@@ -52,30 +52,30 @@
 | Skill | `itinerary-formatter` skill | `skill/itinerary-formatter/SKILL.md` |
 | RAG: chunking + embedding + Qdrant | Wikivoyage по разделам, `text-embedding-3-small` (1536-dim), Qdrant | `ARCHITECTURE.md` → RAG |
 | Скрапинг | Wikivoyage для городов | `scripts/ingest_wikivoyage.py` |
-| Мультимодальность | OpenAI mini vision определяет landmark с фото, результат идёт в граф | `ARCHITECTURE.md` → нода `vision_identify` |
+| Мультимодальность | OpenAI vision определяет landmark с фото, результат идёт в граф | `ARCHITECTURE.md` → нода `vision_identify` |
 | LangSmith логирование | Все LLM-вызовы и ноды графа авто-трассируются | env: `LANGSMITH_TRACING=true` |
 | Golden dataset + ≥ 2 метрики, автопрогон | 10 примеров прогнано. Метрики: `constraint_adherence` + `faithfulness` | `EVALS_PLAN.md`, `evals/results/mini-41.csv`, `evals/results/mini-4o.csv` |
-| A/B эксперимент | `gpt-4.1-mini` vs `gpt-4o-mini` на одном датасете — прогнан | `evals/results/ab_mini_41_vs_4o.md` |
+| A/B эксперимент | Arm A vs Arm B (оба `gpt-5.4-nano`) на одном датасете — прогнан | `evals/results/ab_mini_41_vs_4o.md` |
 | Обоснование выбора LLM | Раздел "LLM choice rationale" в этом файле + подтверждено evals (faithfulness 0.965 vs 0.507) | ниже |
 | Обоснование гиперпараметров | Раздел "Hyperparameters" в этом файле | ниже |
 
 ## LLM choice rationale
 
-**Выбор: OpenAI mini family. Primary — `gpt-4.1-mini`. Secondary (только A/B-arm) — `gpt-4o-mini`.**
+**Выбор: OpenAI GPT-5.4 nano. Primary — `gpt-5.4-nano`. Secondary (только A/B-arm) — `gpt-5.4-nano`.**
 
 Альтернативы, которые рассматривали: Anthropic Claude, Google Gemini, Qwen (Alibaba).
 
-Критерии и обоснование выбора `gpt-4.1-mini`:
+Критерии и обоснование выбора `gpt-5.4-nano`:
 
-| Критерий | gpt-4.1-mini | Почему важно для проекта |
+| Критерий | gpt-5.4-nano | Почему важно для проекта |
 |---|---|---|
-| Стоимость | ~$0.40/M input, ~$1.60/M output (на момент 2026-05) | Mini-модель → весь pipeline дешёвый. Evals × 2 arms ≈ $0.5–$2 |
+| Стоимость | ~$0.20/M input, ~$1.25/M output (на момент 2026-06) | Nano-модель → весь pipeline дешёвый. Evals × 2 arms ≈ $0.5–$2 |
 | Tool-use / structured output | Очень стабильный (strict mode, JSON schema) | `parse_edit_intent` через `with_structured_output` работает без танцев с парсингом |
-| Vision | Встроено (GPT-4o family) | Одна нода `vision_identify` обращается к той же модели, что планирует |
+| Vision | Встроено (GPT-5.4 family) | Одна нода `vision_identify` обращается к той же модели, что планирует |
 | LangChain интеграция | `langchain-openai` — самый зрелый wrapper во всей экосистеме | Минимум yak-shaving |
-| Длинный контекст | 1M токенов (gpt-4.1) | Достаточно для stuff-context fallback при RAG-деградации |
+| Длинный контекст | 400k токенов (gpt-5.4) | Достаточно для stuff-context fallback при RAG-деградации |
 | Качество русского | Очень хорошее | UI и план на русском, intent parsing тоже |
-| Mini vs full | mini выбран осознанно — достаточно для генерации плана из готового RAG-контекста, скорость в 2-3× выше | full-модель не нужна для этой задачи |
+| Nano vs больше | nano выбран осознанно — достаточно для генерации плана из готового RAG-контекста, скорость выше | более крупная модель не нужна для этой задачи |
 
 **Не выбрали:**
 - **Anthropic Claude** — не разрешено условием задачи (ограничение пользователя).
@@ -83,8 +83,8 @@
 - **Qwen** — менее зрелая langchain-интеграция, vision отдельной моделью, лишний шаг в архитектуре.
 
 **Роли моделей в проекте:**
-- `gpt-4.1-mini` (primary, env `OPENAI_MODEL`) — везде: `generate_plan`, `vision_identify`, `parse_edit_intent` (через structured output), HITL `explain_and_ask`, `finalize_and_export`, LLM-as-judge для evals. Single-model подход — простота над оптимизацией.
-- `gpt-4o-mini` (secondary, env `OPENAI_MODEL_B`) — только как arm B в A/B-эксперименте evals.
+- `gpt-5.4-nano` (primary, env `OPENAI_MODEL`) — везде: `generate_plan`, `vision_identify`, `parse_edit_intent` (через structured output), HITL `explain_and_ask`, `finalize_and_export`, LLM-as-judge для evals. Single-model подход — простота над оптимизацией.
+- `gpt-5.4-nano` (secondary, env `OPENAI_MODEL_B`) — только как arm B в A/B-эксперименте evals.
 
 Примечание: интересы пользователя вводятся через multiselect (фиксированный список из формы), поэтому отдельной ноды "классификация интересов" нет — она не нужна.
 
@@ -118,7 +118,7 @@
 
 В приоритетном порядке:
 1. **Render deploy** — закроет рекомендуемый пункт спеки.
-2. **Fallback на full-модель** при сложных запросах (mini → gpt-4.1 при низкой уверенности).
+2. **Fallback на более крупную модель** при сложных запросах (nano → gpt-5.4-mini при низкой уверенности).
 3. **bge-reranker** поверх RAG-результатов (~1 час, +5–10% к faithfulness).
 4. **Guardrails:** PII-фильтр на входе (имена/адреса/телефоны).
 5. **Расширение RAG** до 8–10 городов.

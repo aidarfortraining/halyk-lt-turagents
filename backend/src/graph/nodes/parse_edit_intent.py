@@ -1,4 +1,4 @@
-"""Node 13: parse_edit_intent — OpenAI mini structured output."""
+"""Node 13: parse_edit_intent — OpenAI nano structured output."""
 from __future__ import annotations
 
 import logging

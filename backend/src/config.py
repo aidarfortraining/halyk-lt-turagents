@@ -31,8 +31,8 @@ class Settings(BaseSettings):
     # LLM (OpenAI)
     openai_api_key: str = Field(default="")
     openai_base_url: str = ""  # optional override for Azure / proxies
-    openai_model: str = "gpt-4.1-mini"
-    openai_model_b: str = "gpt-4o-mini"  # secondary mini for A/B experiment
+    openai_model: str = "gpt-5.4-nano"
+    openai_model_b: str = "gpt-5.4-nano"  # secondary model for A/B experiment
     openai_embedding_model: str = "text-embedding-3-small"
 
     # LangSmith
